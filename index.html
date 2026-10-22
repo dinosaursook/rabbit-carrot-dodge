@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>토끼 당근 피하기</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #fff4e0; color: #5a3a1e;
+    font-family: system-ui, "Malgun Gothic", sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  #app {
+    position: fixed; inset: 0; max-width: 480px; margin: 0 auto;
+    display: flex; flex-direction: column; padding: 8px;
+    gap: 8px;
+  }
+  #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .box {
+    background: #fff; border: 3px solid #e8a55a; border-radius: 14px;
+    padding: 4px 12px; font-weight: 800; font-size: 24px; line-height: 1.2;
+    white-space: nowrap;
+  }
+  .box small { font-size: 14px; font-weight: 700; margin-right: 6px; color: #a0703a; }
+  #hearts { display: inline-flex; gap: 4px; vertical-align: middle; }
+  .heart { width: 20px; height: 20px; background: #ff5a6e; border-radius: 50%; }
+  .heart { transition: background .3s, transform .3s; }
+  .heart.off { background: #e6d6c2; transform: scale(.7); }
+  #muteBtn {
+    font-size: 16px; font-weight: 700; padding: 6px 10px; border-radius: 12px;
+    border: 3px solid #e8a55a; background: #fff; color: #5a3a1e;
+  }
+  #muteBtn[hidden] { display: none; }
+  #stageWrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; }
+  #stage { position: relative; }
+  canvas { display: block; width: 100%; height: 100%; border-radius: 16px; border: 3px solid #e8a55a; touch-action: none; background: #d9f2ff; }
+  #controls { display: flex; gap: 12px; }
+  .ctl {
+    flex: 1; height: 72px; font-size: 38px; font-weight: 900; border-radius: 18px;
+    border: 3px solid #d98b2b; background: #ffc46b; color: #5a3a1e;
+    touch-action: none; box-shadow: 0 4px 0 #d98b2b;
+  }
+  .ctl.on { transform: translateY(3px); box-shadow: 0 1px 0 #d98b2b; background: #ffb347; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; background: #fff4e0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 16px; text-align: center;
+  }
+  .overlay[hidden] { display: none; }
+  .overlay:not([hidden]) { animation: fadeIn .35s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .bigbtn {
+    font-size: 26px; font-weight: 900; padding: 14px 40px; border-radius: 20px;
+    border: 3px solid #d98b2b; background: #ffc46b; color: #5a3a1e; box-shadow: 0 4px 0 #d98b2b;
+  }
+  .bigbtn[hidden] { display: none; }
+  
+  #opening { flex: 1; min-height: 0; max-width: 100%; object-fit: cover; border-radius: 16px; border: 3px solid #e8a55a; }
+  #posterFallback { flex: 1; display: none; flex-direction: column; justify-content: center; gap: 10px; }
+  #posterFallback h1 { margin: 0; font-size: 40px; }
+  #posterFallback p { margin: 0; font-size: 18px; }
+  .noposter #opening { display: none; }
+  .noposter #posterFallback { display: flex; }
+  
+  #over { background: rgba(255, 244, 224, .88); }
+  #over h2, #clearMsg h2 { font-size: 40px; margin: 0; }
+  #over p { font-size: 22px; margin: 0; font-weight: 700; }
+  #clear { background: #000; padding: 0; gap: 0; }
+  #ending { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #clearMsg {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; background: rgba(255, 244, 224, .88);
+  }
+  #clearMsg[hidden] { display: none; }
+  #clearMsg p { font-size: 22px; font-weight: 700; margin: 0; }
+  
+  .congrats-text { color: #ff5a6e; text-shadow: 2px 2px 0px #fff; animation: bounce 1s infinite alternate; }
+  @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="box"><small>점수</small><span id="score">0</span></div>
+    <button id="muteBtn" type="button">소리 끄기</button>
+    <div class="box"><small>목숨</small><span id="hearts"></span></div>
+  </div>
+  <div id="stageWrap"><div id="stage"><canvas id="cv" width="360" height="540"></canvas></div></div>
+  <div id="controls">
+    <button class="ctl" id="btnL" type="button" aria-label="왼쪽">◀</button>
+    <button class="ctl" id="btnR" type="button" aria-label="오른쪽">▶</button>
+  </div>
+</div>
+
+<div class="overlay" id="start">
+  <video id="opening" src="opening.mp4" autoplay loop muted playsinline></video>
+  <div id="posterFallback"><h1>토끼 당근 피하기</h1><p>떨어지는 당근을 피해서<br>15초를 버티면 클리어!</p></div>
+  <button class="bigbtn" id="startBtn" type="button">시작</button>
+</div>
+
+<div class="overlay" id="over" hidden>
+  <h2>게임 오버</h2>
+  <p>점수 <span id="finalScore">0</span></p>
+  <button class="bigbtn" id="retryBtn" type="button">다시 하기</button>
+</div>
+
+<div class="overlay" id="clear" hidden>
+  <video id="ending" src="ending.mp4" playsinline preload="auto"></video>
+  <div id="clearMsg" hidden>
+    <h2 class="congrats-text">축하합니다! 클리어!🎉</h2>
+    <p>당근을 모두 피했어요!</p>
+    <button class="bigbtn" id="againBtn" type="button">다시 하기</button>
+  </div>
+</div>
+
+<audio id="music" src="music.mp3" loop preload="auto"></audio>
+
+<script>
+(function () {
+  var W = 360, H = 540;
+  var GOAL = 300, RATE = 20, LIVES = 5, INVULN = 1.5;
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var stage = document.getElementById('stage');
+  var scoreEl = document.getElementById('score');
+  var heartsEl = document.getElementById('hearts');
+  var music = document.getElementById('music');
+  var muteBtn = document.getElementById('muteBtn');
+  var openingVideo = document.getElementById('opening');
+  var endingVideo = document.getElementById('ending');
+
+  var state = 'ready'; 
+  var musicOn = true, musicBroken = false;
+  var rabbit, carrots, t, spawnT, lives, invuln, last = 0;
+  var keys = { left: false, right: false }, btn = { left: false, right: false };
+  var dragX = null, vx = 0, shake = 0, view = 1, face = 1, hop = 0, hopAmt = 0, tiltS = 0;
+
+  // --- 오디오(사운드 이펙트) 생성기 ---
+  var audioCtx = null;
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playSfx(type) {
+    if (!musicOn || !audioCtx) return;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    var now = audioCtx.currentTime;
+    if (type === 'hit') {
+      // 쾅 부딪히는 소리
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'clear') {
+      // 띠리링 클리어 소리
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.setValueAtTime(600, now + 0.15);
+      osc.frequency.setValueAtTime(800, now + 0.3);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.6);
+      osc.start(now); osc.stop(now + 0.6);
+    } else if (type === 'over') {
+      // 게임 오버 소리
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    }
+  }
+
+  // --- 이미지 에셋 로드 ---
+  var rabbitImg = new Image(); rabbitImg.src = 'rabbit.png'; 
+  var carrotImg = new Image(); carrotImg.src = 'carrot.png'; 
+
+  // ----- hearts
+  for (var i = 0; i < LIVES; i++) {
+    var h = document.createElement('span'); h.className = 'heart'; heartsEl.appendChild(h);
+  }
+  function showLives() {
+    for (var i = 0; i < heartsEl.children.length; i++)
+      heartsEl.children[i].className = 'heart' + (i < lives ? '' : ' off');
+  }
+
+  function resize() {
+    var wrap = document.getElementById('stageWrap');
+    var aw = wrap.clientWidth, ah = wrap.clientHeight;
+    var w = Math.min(aw, ah * W / H);
+    w = Math.max(100, Math.floor(w));
+    stage.style.width = w + 'px';
+    var hh = Math.floor(w * H / W);
+    stage.style.height = hh + 'px';
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+    view = cv.width / W;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ----- media
+  openingVideo.addEventListener('error', function () { document.getElementById('start').classList.add('noposter'); });
+  music.addEventListener('error', function () { musicBroken = true; muteBtn.hidden = true; });
+  function playMusic() {
+    if (!musicOn || musicBroken) return;
+    try { var p = music.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  }
+  function pauseMusic() { try { music.pause(); } catch (e) {} }
+  muteBtn.addEventListener('click', function () {
+    initAudio();
+    musicOn = !musicOn;
+    muteBtn.textContent = musicOn ? '소리 끄기' : '소리 켜기';
+    if (musicOn) playMusic(); else pauseMusic();
+  });
+
+  var clearEl = document.getElementById('clear'), clearMsg = document.getElementById('clearMsg');
+  function showClearButton() { clearMsg.hidden = false; }
+  endingVideo.addEventListener('error', showClearButton);
+  endingVideo.addEventListener('ended', showClearButton);
+  
+  function playEnding() {
+    clearEl.hidden = false; clearMsg.hidden = true;
+    pauseMusic();
+    playSfx('clear'); // 클리어 효과음
+    try {
+      endingVideo.currentTime = 0;
+      var p = endingVideo.play();
+      if (p && p.catch) p.catch(showClearButton);
+    } catch (e) { showClearButton(); }
+  }
+
+  // ----- game
+  function reset() {
+    rabbit = { x: W / 2, y: H - 46, w: 50, h: 60, dx: 0 };
+    vx = 0; shake = 0; face = 1; hop = 0; hopAmt = 0; tiltS = 0; dragX = null;
+    carrots = []; t = 0; spawnT = 0.6; lives = LIVES; invuln = 0;
+    scoreEl.textContent = '0'; showLives();
+  }
+  
+  function startGame() {
+    initAudio(); // 게임 시작 시 오디오 활성화
+    reset();
+    document.getElementById('start').hidden = true;
+    document.getElementById('over').hidden = true;
+    clearEl.hidden = true;
+    try { openingVideo.pause(); } catch (e) {} 
+    try { endingVideo.pause(); } catch (e) {}
+    state = 'play'; last = 0;
+    playMusic();
+  }
+  
+  function spawn() {
+    var s = 22 + Math.random() * 10;
+    carrots.push({ x: s + Math.random() * (W - 2 * s), y: -40, s: s / 22,
+                   v: 95 + Math.random() * 35 + t * 3, rot: (Math.random() - .5) * .5 });
+  }
+  
+  function update(dt) {
+    t += dt;
+    var score = Math.min(GOAL, Math.floor(t * RATE));
+    scoreEl.textContent = score;
+
+    var prevX = rabbit.x;
+    var dir = (keys.left || btn.left ? -1 : 0) + (keys.right || btn.right ? 1 : 0);
+    
+    var target = 0;
+    if (dir) { target = dir * 300; dragX = null; }
+    else if (dragX !== null) {
+      var dd = dragX - rabbit.x;
+      target = Math.abs(dd) < 0.5 ? 0 : Math.max(-900, Math.min(900, dd * 14));
+    }
+    vx += (target - vx) * (1 - Math.exp(-16 * dt));   // 부드러운 가속/감속
+    rabbit.x += vx * dt;
+    var lo = rabbit.w / 2, hi = W - rabbit.w / 2;
+    if (rabbit.x < lo) { rabbit.x = lo; vx = 0; } else if (rabbit.x > hi) { rabbit.x = hi; vx = 0; }
+    if (vx > 15) face = 1; else if (vx < -15) face = -1;
+    // 뛰기 애니메이션: 속도에 따라 부드럽게 커졌다 작아짐
+    hopAmt += (Math.min(1, Math.abs(vx) / 150) - hopAmt) * (1 - Math.exp(-12 * dt));
+    hop += dt * 22 * hopAmt;
+    tiltS += (Math.max(-1, Math.min(1, vx / 300)) - tiltS) * (1 - Math.exp(-14 * dt));
+    if (shake > 0) shake = Math.max(0, shake - dt);
+
+    // 토끼가 얼마나 이동했는지 계산 (애니메이션에 사용)
+    rabbit.dx = rabbit.x - prevX;
+
+    spawnT -= dt;
+    if (spawnT <= 0) { spawn(); spawnT = Math.max(0.65, 1.0 - t * 0.02) + Math.random() * 0.25; }
+    for (var i = carrots.length - 1; i >= 0; i--) {
+      var c = carrots[i]; c.y += c.v * dt; c.a = (c.a || 0) + dt;
+      if (c.y > H + 60) carrots.splice(i, 1);
+    }
+    
+    if (invuln > 0) invuln -= dt;
+    else {
+      var rx = rabbit.x, ry = rabbit.y, rw = 20, rh = 25;
+      for (var j = 0; j < carrots.length; j++) {
+        var k = carrots[j], cw = 10 * k.s, ch = 20 * k.s;
+        if (Math.abs(k.x - rx) < rw + cw && Math.abs(k.y - ry) < rh + ch) {
+          carrots.splice(j, 1);
+          playSfx('hit'); // 당근에 맞았을 때 사운드
+          lives--; showLives(); invuln = INVULN; shake = 0.25;
+          if (lives <= 0) { gameOver(); return; }
+          break;
+        }
+      }
+    }
+    if (score >= GOAL) { state = 'clear'; playEnding(); }
+  }
+  
+  function gameOver() {
+    state = 'over';
+    pauseMusic();
+    playSfx('over'); // 게임 오버 사운드
+    document.getElementById('finalScore').textContent = scoreEl.textContent;
+    document.getElementById('over').hidden = false;
+  }
+
+  // ----- drawing
+  function drawRabbit(r) {
+    if(invuln > 0 && Math.floor(invuln * 10) % 2 === 0) return; // 피격 시 깜빡임
+    ctx.save();
+    
+    // 뛰는(이동하는) 애니메이션 처리 로직
+    var bounceY = Math.abs(Math.sin(hop)) * 8 * hopAmt;
+    var idle = (1 - hopAmt) * Math.sin(t * 4) * 1.2;
+    ctx.translate(r.x, r.y - bounceY + idle);
+    ctx.rotate(tiltS * 0.15 + Math.sin(hop) * 0.08 * hopAmt);
+    
+    if(rabbitImg.complete && rabbitImg.naturalWidth > 0) {
+      // 오른쪽으로 갈 때는 이미지를 그대로, 왼쪽으로 갈 때는 반전시킴
+      if (face < 0) ctx.scale(-1, 1);
+      ctx.drawImage(rabbitImg, -25, -30, 50, 60);
+    } else {
+      ctx.fillStyle = '#fff'; ctx.fillRect(-20, -25, 40, 50);
+    }
+    ctx.restore();
+  }
+  
+  function drawCarrot(c) {
+    ctx.save(); 
+    ctx.translate(c.x, c.y); 
+    ctx.rotate(c.rot + Math.sin((c.a || 0) * 3 + c.x) * 0.12); 
+    ctx.scale(c.s, c.s);
+    if(carrotImg.complete && carrotImg.naturalWidth > 0) {
+      ctx.drawImage(carrotImg, -15, -25, 30, 50);
+    } else {
+      ctx.fillStyle = '#ff8c1a'; ctx.fillRect(-10, -20, 20, 40);
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.setTransform(view, 0, 0, view, 0, 0);
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - .5) * shake * 24, (Math.random() - .5) * shake * 24);
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#cdeeff'); g.addColorStop(1, '#eaf9d8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#8fd16a'; ctx.fillRect(0, H - 14, W, 14);
+    
+    if (rabbit) {
+      carrots.forEach(drawCarrot);
+      drawRabbit(rabbit);
+    }
+    ctx.restore();
+  }
+  
+  function loop(ts) {
+    if (!last) last = ts;
+    var dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    if (state === 'play') update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  reset(); requestAnimationFrame(loop);
+
+  // ----- input
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
+    if (e.key === 'ArrowRight') { keys.right = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', function (e) {
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+  });
+  window.addEventListener('blur', function () { keys.left = keys.right = false; });
+
+  function holdButton(id, name) {
+    var el = document.getElementById(id);
+    function on(e) { e.preventDefault(); btn[name] = true; el.classList.add('on');
+      try { el.setPointerCapture(e.pointerId); } catch (x) {} }
+    function off() { btn[name] = false; el.classList.remove('on'); }
+    el.addEventListener('pointerdown', on);
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('lostpointercapture', off);
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  holdButton('btnL', 'left'); holdButton('btnR', 'right');
+
+  function dragTo(e) {
+    var r = cv.getBoundingClientRect();
+    dragX = (e.clientX - r.left) / r.width * W;
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    e.preventDefault(); dragTo(e);
+    try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (e.buttons || e.pointerType === 'touch') dragTo(e);
+  });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('retryBtn').addEventListener('click', startGame);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+})();
+</script>
+</body>
+</html>
