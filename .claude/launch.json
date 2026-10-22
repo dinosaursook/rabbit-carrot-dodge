@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "praise-relay",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["guestbook/app.py"],
+      "port": 8080
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>칭찬 릴레이</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><span class="eyebrow">PRAISE RELAY · 우리 팀</span><h1>오늘의 칭찬 한마디 <span aria-hidden="true">✨</span></h1><p>고마웠던 순간을 한 줄로 남기고, 다음 사람에게 칭찬을 이어 주세요.</p></header>
+    <div class="layout">
+      <section class="write" aria-labelledby="write-title">
+        <span class="step">01 / 칭찬 보내기</span><h2 id="write-title">칭찬 남기기</h2>
+        <form id="entry-form">
+          <label for="name">보내는 사람</label><input id="name" name="name" maxlength="40" required autocomplete="off" placeholder="내 이름">
+          <label for="to">받는 사람 <span class="optional">(선택)</span></label><input id="to" name="to" maxlength="40" autocomplete="off" placeholder="칭찬받을 팀원 이름">
+          <label for="message">칭찬 한마디</label><textarea id="message" name="message" rows="4" maxlength="500" required placeholder="예: 어제 회의 자료 정리해 줘서 정말 고마워요!"></textarea>
+          <button id="submit-button" type="submit">칭찬 보내기 <span aria-hidden="true">💌</span></button>
+          <p id="form-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section class="read" aria-labelledby="list-title">
+        <div class="list-heading"><div><span class="step">02 / 칭찬 보드</span><h2 id="list-title">모두의 칭찬</h2></div><button id="refresh-button" class="quiet" type="button">새로고침</button></div>
+        <p id="list-status" class="status" role="status" aria-live="polite"></p><ol id="entry-list"></ol>
+      </section>
+    </div>
+    <footer><span class="dot" aria-hidden="true"></span> 로그인 없이 링크로 함께 쓰는 팀 보드 · 최근 200개 표시</footer>
+  </main>
+</body>
+</html>
